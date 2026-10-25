@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block title %}{{ c.name }} · MotionClipper KL{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ c.name }}</h1>
+    <p class="sub">Aturan brief yang dipakai untuk memilih momen, menulis caption, dan merender clip.</p>
+  </div>
+  <a class="btn primary" href="/jobs/new?campaign={{ c.id }}">Buat job dari campaign ini</a>
+</div>
+{% if saved %}<div class="banner" style="background:var(--ok-soft);border-color:var(--ok)">Perubahan tersimpan. Caption clip lama ikut diperbarui; render ulang clip agar overlay baru ikut masuk.</div>{% endif %}
+
+<div class="camp-grid">
+<form method="post" action="/campaigns/{{ c.id }}" enctype="multipart/form-data" class="panel">
+  <fieldset>
+    <legend>Info campaign</legend>
+    <div class="grid2">
+      <div class="field"><label>Nama</label><input type="text" name="name" value="{{ c.name }}" required></div>
+      <div class="field"><label>Clip eligible mulai</label><input type="date" name="eligible_from" value="{{ c.eligible_from }}"></div>
+    </div>
+    <div class="field">
+      <label>Platform tujuan</label>
+      <div class="row">
+        {% for key, label in [('youtube_shorts','YouTube Shorts'),('instagram_reels','Instagram Reels'),('tiktok','TikTok')] %}
+        <label class="check"><input type="checkbox" name="platforms" value="{{ key }}" {% if key in c.platforms %}checked{% endif %}> {{ label }}</label>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="field">
+      <label>Link video sumber <span class="hint">· satu per baris, dari brief</span></label>
+      <textarea name="sources" rows="4">{{ c.sources | join('\n') }}</textarea>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Brief untuk AI</legend>
+    <div class="field">
+      <label>Arahan konten <span class="hint">· momen seperti apa yang dicari</span></label>
+      <textarea name="content_hint" rows="3">{{ c.content_hint }}</textarea>
+    </div>
+    <div class="field">
+      <label>Kata kunci reaksi <span class="hint">· dipisah koma; sesuaikan dengan kegiatan YouTuber</span></label>
+      <input type="text" name="moment_keywords" value="{{ c.moment_keywords | join(', ') }}">
+    </div>
+    <div class="field">
+      <label>Larangan <span class="hint">· satu per baris; dicek AI di setiap clip</span></label>
+      <textarea name="banned" rows="5">{{ c.banned | join('\n') }}</textarea>
+    </div>
+    <div class="grid3">
+      <div class="field"><label>Durasi minimal (dtk)</label><input type="number" name="duration_min" value="{{ c.duration_min }}" min="5" max="170"></div>
+      <div class="field"><label>Durasi maksimal (dtk)</label><input type="number" name="duration_max" value="{{ c.duration_max }}" min="10" max="180"></div>
+      <div class="field"><label>Jumlah clip per video</label><input type="number" name="num_clips" value="{{ c.num_clips }}" min="1" max="30"></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Caption</legend>
+    <div class="field">
+      <label>Teks wajib di caption <span class="hint">· satu per baris, contoh website atau mention</span></label>
+      <textarea name="caption_required" rows="2">{{ c.caption_required | join('\n') }}</textarea>
+    </div>
+    <div class="field">
+      <label>Hashtag sesuai urutan brief</label>
+      <input type="text" name="hashtags_ordered" value="{{ c.hashtags_ordered | join(' ') }}">
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Watermark & logo</legend>
+    <p class="hint">Tampil sepanjang video. Unduh file dari Google Drive campaign, lalu unggah di sini (PNG transparan paling rapi).</p>
+    {% for kind, title in [('watermark','Watermark'),('logo','Logo brand')] %}
+    {% set cfg = c[kind] %}
+    <div class="asset-box">
+      <div class="thumb">
+        {% if files[kind] %}<img src="/files/campaigns/{{ c.id }}/{{ cfg.file }}?v={{ range(1,99999) | random }}" alt="{{ title }}">{% else %}Belum ada{% endif %}
+      </div>
+      <div>
+        <h3 style="margin-bottom:8px">{{ title }}</h3>
+        <div class="grid2">
+          <div class="field">
+            <label>Posisi</label>
+            <select name="{{ kind }}_position">
+              {% for v, l in [('top_left','Kiri atas'),('top_right','Kanan atas'),('top_center','Tengah atas'),('middle_left','Kiri tengah'),('middle_right','Kanan tengah'),('none','Jangan tampilkan')] %}
+              <option value="{{ v }}" {% if cfg.position == v %}selected{% endif %}>{{ l }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field"><label>Lebar (px dari 1080)</label><input type="number" name="{{ kind }}_width" value="{{ cfg.width }}" min="60" max="900"></div>
+        </div>
+        <div class="row">
+          <input type="file" name="{{ kind }}_file" accept="image/png,image/jpeg,image/webp">
+          {% if files[kind] %}<button class="btn small danger" formaction="/campaigns/{{ c.id }}/remove/{{ kind }}" formnovalidate>Hapus file</button>{% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </fieldset>
+
+  <fieldset>
+    <legend>Asset video wajib</legend>
+    <div class="asset-box">
+      <div class="thumb">
+        {% if files.asset %}<video src="/files/campaigns/{{ c.id }}/{{ c.asset.file }}" muted preload="metadata"></video>{% else %}Belum ada{% endif %}
+      </div>
+      <div>
+        <div class="grid3">
+          <div class="field">
+            <label>Sisipkan di</label>
+            <select name="asset_insert_at">
+              {% for v, l in [('after_hook','Setelah hook'),('start','Awal clip'),('end','Akhir clip'),('none','Tidak disisipkan')] %}
+              <option value="{{ v }}" {% if c.asset.insert_at == v %}selected{% endif %}>{{ l }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field"><label>Mulai dari (dtk)</label><input type="number" step="0.1" name="asset_trim_start" value="{{ c.asset.trim_start }}" min="0"></div>
+          <div class="field"><label>Sampai (dtk, 0 = habis)</label><input type="number" step="0.1" name="asset_trim_end" value="{{ c.asset.trim_end }}" min="0"></div>
+        </div>
+        <div class="row">
+          <input type="file" name="asset_file" accept="video/*">
+          {% if files.asset %}<button class="btn small danger" formaction="/campaigns/{{ c.id }}/remove/asset" formnovalidate>Hapus file</button>{% endif %}
+        </div>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Tata letak default</legend>
+    <p class="hint">Area konten dan facecam digambar di halaman job (di atas cuplikan video), lalu bisa disimpan sebagai default campaign.</p>
+    <div class="grid2">
+      <div class="field">
+        <label>Mode</label>
+        <select name="layout_mode">
+          {% for v, l in [('facecam_box','Konten penuh + facecam kotak'),('split_facecam_bottom','Konten atas + facecam bawah'),('center','Crop tengah saja')] %}
+          <option value="{{ v }}" {% if c.layout.mode == v %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Konten diisi dengan</label>
+        <select name="layout_content_fit">
+          <option value="cover" {% if c.layout.content_fit == 'cover' %}selected{% endif %}>Crop memenuhi layar</option>
+          <option value="fit_blur" {% if c.layout.content_fit == 'fit_blur' %}selected{% endif %}>Utuh + latar blur</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Posisi kotak facecam</label>
+        <select name="layout_facecam_pos">
+          {% for v, l in [('top_center','Tengah atas'),('top_left','Kiri atas'),('top_right','Kanan atas'),('middle_left','Kiri tengah'),('middle_right','Kanan tengah')] %}
+          <option value="{{ v }}" {% if c.layout.facecam_pos == v %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field"><label>Lebar kotak facecam (px)</label><input type="number" name="layout_facecam_width" value="{{ c.layout.facecam_width }}" min="200" max="1000"></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Subtitle</legend>
+    <div class="row" style="gap:18px;margin-bottom:12px">
+      <label class="check"><input type="checkbox" name="sub_enabled" {% if c.subtitle.enabled %}checked{% endif %}> Subtitle kata per kata</label>
+      <label class="check"><input type="checkbox" name="sub_hook_overlay" {% if c.subtitle.hook_overlay %}checked{% endif %}> Teks hook di 3 detik pertama</label>
+      <label class="check"><input type="checkbox" name="sub_uppercase" {% if c.subtitle.uppercase %}checked{% endif %}> Huruf kapital</label>
+    </div>
+    <div class="grid3">
+      <div class="field"><label>Font</label><input type="text" name="sub_font" value="{{ c.subtitle.font }}"></div>
+      <div class="field"><label>Ukuran</label><input type="number" name="sub_size" value="{{ c.subtitle.size }}" min="30" max="140"></div>
+      <div class="field"><label>Kata per baris</label><input type="number" name="sub_words_per_line" value="{{ c.subtitle.words_per_line }}" min="1" max="6"></div>
+    </div>
+    <div class="row">
+      <label class="check"><input type="color" name="sub_color" value="{{ c.subtitle.color }}"> Warna teks</label>
+      <label class="check"><input type="color" name="sub_highlight" value="{{ c.subtitle.highlight }}"> Warna kata aktif</label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Catatan</legend>
+    <textarea name="notes" rows="3">{{ c.notes }}</textarea>
+  </fieldset>
+
+  <div class="save-bar"><button class="btn primary">Simpan campaign</button><span class="hint">Unggahan file ikut tersimpan.</span></div>
+</form>
+
+<aside class="aside">
+  <div class="panel">
+    <h2 style="margin-bottom:10px">Siap render?</h2>
+    <ul class="sys-list">
+      <li><span class="dot {{ 'ok' if assets.watermark else 'bad' }}"></span><span class="what">Watermark</span></li>
+      <li><span class="dot {{ 'ok' if assets.logo else 'bad' }}"></span><span class="what">Logo tidak transparan</span></li>
+      <li><span class="dot {{ 'ok' if assets.asset else 'bad' }}"></span><span class="what">Asset video wajib</span></li>
+      <li><span class="dot {{ 'ok' if c.hashtags_ordered else 'bad' }}"></span><span class="what">Hashtag berurutan</span></li>
+      <li><span class="dot {{ 'ok' if c.layout.facecam else 'bad' }}"></span><span class="what">Area facecam digambar</span></li>
+    </ul>
+    <p class="hint" style="margin-top:10px">Titik merah tidak menghentikan render, tapi clip tanpa itu bisa ditolak campaign.</p>
+  </div>
+  {% if c.notes %}
+  <div class="panel"><h3 style="margin-bottom:6px">Catatan brief</h3><p class="muted" style="white-space:pre-wrap;font-size:13.5px">{{ c.notes }}</p></div>
+  {% endif %}
+</aside>
+</div>
+{% endblock %}

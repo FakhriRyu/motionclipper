@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}{{ job.title }} · MotionClipper KL{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div style="min-width:0">
+    <h1 id="job-title" style="overflow-wrap:anywhere">{{ job.title }}</h1>
+    <p class="sub">
+      <a href="/campaigns/{{ job.campaign_id }}">{{ c.name or job.campaign_id }}</a>
+      {% if job.source.url %} · <a href="{{ job.source.url }}" target="_blank" rel="noopener">buka di YouTube</a>{% endif %}
+      · biaya DeepSeek <span id="job-cost">–</span>
+    </p>
+  </div>
+  <div class="row" id="job-actions">
+    <button class="btn" data-act="cancel" hidden>Batalkan</button>
+    <button class="btn primary" data-act="retry" hidden>Lanjutkan</button>
+    <select id="rerun-stage" aria-label="Ulangi dari tahap" style="width:auto">
+      <option value="">Ulangi dari tahap…</option>
+      {% for s in STAGES %}<option value="{{ s }}">{{ loop.index }}. {{ STAGE_LABELS[s] }}</option>{% endfor %}
+    </select>
+  </div>
+</div>
+
+<ol class="stages" id="stages">
+  {% for s in STAGES %}<li data-stage="{{ s }}">{{ STAGE_LABELS[s] }}</li>{% endfor %}
+</ol>
+<div class="status">
+  <div class="row" style="justify-content:space-between"><span id="status-text">Memuat…</span><span id="progress-text" class="muted"></span></div>
+  <div class="bar"><i id="progress-bar"></i></div>
+</div>
+<div id="error-box" class="error-box" hidden></div>
+<details style="margin-top:8px"><summary class="muted" style="cursor:pointer;font-size:13px">Log proses</summary><div class="log" id="log"></div></details>
+
+<div id="timeline-wrap" hidden>
+  <div class="timeline" id="timeline" aria-label="Posisi clip di video sumber"></div>
+  <div class="timeline-scale"><span>0:00</span><span id="tl-mid"></span><span id="tl-end"></span></div>
+  <div class="legend"><span><i style="background:var(--accent)"></i>Clip</span><span><i style="background:var(--ok)"></i>Clip disetujui</span><span><i style="background:var(--gold)"></i>Lonjakan suara (reaksi heboh)</span></div>
+</div>
+
+<div class="job-grid">
+  <section>
+    <div class="section-title" style="margin-top:0">
+      <h2>Clip <span class="muted" id="clip-count"></span></h2>
+      <div class="row">
+        <button class="btn small" data-act="render-all">Render ulang semua</button>
+        {% if IS_MAC %}<button class="btn small" data-act="open-folder">Buka folder di Finder</button>{% endif %}
+        <a class="btn small primary" href="/jobs/{{ job.id }}/export.zip">Unduh ZIP disetujui</a>
+      </div>
+    </div>
+    <div id="clips"><div class="panel muted">Clip muncul di sini setelah tahap Pilih momen selesai.</div></div>
+
+    <details class="panel" id="manual-clip" style="margin-top:6px">
+      <summary style="cursor:pointer;font-weight:650">Tambah clip manual</summary>
+      <p class="hint" style="margin-top:8px">Untuk momen yang terlewat AI. Format waktu jam:menit:detik atau menit:detik.</p>
+      <div class="times" style="max-width:460px">
+        <div><label for="m-start">Mulai</label><input type="text" id="m-start" placeholder="1:02:15"></div>
+        <div><label for="m-end">Selesai</label><input type="text" id="m-end" placeholder="1:02:58"></div>
+        <button class="btn primary" data-act="add-clip">Tambah & render</button>
+      </div>
+    </details>
+
+    <div class="row" style="margin-top:22px">
+      <button class="btn small danger" data-act="delete-source">Hapus video sumber (hemat disk)</button>
+      <button class="btn small danger" data-act="delete-job">Hapus job</button>
+    </div>
+  </section>
+
+  <aside class="aside">
+    <div class="panel" id="layout-panel">
+      <h2 style="margin-bottom:4px">Tata letak 9:16</h2>
+      <p class="hint">Gambar kotak di cuplikan: pilih area, lalu seret di gambar.</p>
+      <div class="row" style="margin:10px 0">
+        <div class="seg" role="group" aria-label="Area yang digambar">
+          <button type="button" data-draw="content" class="on"><span class="swatch-c">■</span> Area konten</button>
+          <button type="button" data-draw="facecam"><span class="swatch-f">■</span> Area facecam</button>
+        </div>
+      </div>
+      <div class="stage-wrap" id="stage-wrap">
+        <img id="snapshot" alt="Cuplikan video sumber" hidden>
+        <canvas id="draw-canvas"></canvas>
+        <div id="snapshot-empty" class="muted" style="padding:40px 16px;text-align:center;color:#aab">Cuplikan muncul setelah video selesai diunduh.</div>
+      </div>
+      <div class="field" style="margin-top:12px">
+        <label for="lay-mode">Mode</label>
+        <select id="lay-mode">
+          <option value="facecam_box">Konten penuh + facecam kotak</option>
+          <option value="split_facecam_bottom">Konten atas + facecam bawah</option>
+          <option value="center">Crop tengah saja</option>
+        </select>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label for="lay-fit">Konten</label>
+          <select id="lay-fit"><option value="cover">Crop penuh</option><option value="fit_blur">Utuh + blur</option></select>
+        </div>
+        <div class="field">
+          <label for="lay-pos">Kotak facecam</label>
+          <select id="lay-pos">
+            <option value="top_center">Tengah atas</option><option value="top_left">Kiri atas</option><option value="top_right">Kanan atas</option>
+            <option value="middle_left">Kiri tengah</option><option value="middle_right">Kanan tengah</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="lay-width">Lebar kotak facecam: <span id="lay-width-val"></span>px</label>
+        <input type="range" id="lay-width" min="240" max="700" step="10" style="width:100%">
+      </div>
+      <div class="row">
+        <button class="btn small" data-act="clear-facecam">Hapus area facecam</button>
+        <button class="btn small" data-act="preview">Lihat pratinjau</button>
+      </div>
+      <div class="layout-preview">
+        <img id="preview-img" alt="Pratinjau frame 9:16" hidden>
+        <div class="hint" id="preview-note">Pratinjau memakai watermark dan logo campaign, tanpa subtitle.</div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary small" data-act="save-layout">Simpan untuk job ini</button>
+        <button class="btn small" data-act="save-default">Jadikan default campaign</button>
+      </div>
+    </div>
+  </aside>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+initJobPage({{ job.id | tojson }}, {{ layout | tojson }}, {{ (c.duration_min or 20) | tojson }}, {{ (c.duration_max or 60) | tojson }});
+</script>
+{% endblock %}

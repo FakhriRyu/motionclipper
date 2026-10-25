@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% set active = 'settings' %}
+{% block title %}Pengaturan · MotionClipper KL{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Pengaturan</h1>
+    <p class="sub">Disimpan di <code>{{ env_path }}</code>. File ini jangan dibagikan karena berisi API key.</p>
+  </div>
+</div>
+{% if saved %}<div class="banner" style="background:var(--ok-soft);border-color:var(--ok)">Pengaturan tersimpan.</div>{% endif %}
+
+<div class="camp-grid">
+<form method="post" action="/settings" class="panel">
+  <fieldset>
+    <legend>DeepSeek (cloud)</legend>
+    <p class="hint">Dipakai untuk memilih momen dan menulis caption. Hanya teks transkrip yang dikirim; video tetap di Mac. Buat API key di platform.deepseek.com, menu API keys.</p>
+    <div class="field">
+      <label for="key">API key {% if s.deepseek_api_key %}<span class="pill ok">tersimpan ···{{ s.deepseek_api_key[-4:] }}</span>{% endif %}</label>
+      <input type="password" id="key" name="DEEPSEEK_API_KEY" placeholder="{{ 'Kosongkan jika tidak diganti' if s.deepseek_api_key else 'sk-…' }}" autocomplete="off">
+    </div>
+    <div class="field"><label for="dm">Model</label><input type="text" id="dm" name="DEEPSEEK_MODEL" value="{{ s.deepseek_model }}"></div>
+    <button type="button" class="btn small" id="test-ds">Tes koneksi DeepSeek</button>
+    <span id="test-ds-out" class="hint"></span>
+    <div style="height:10px"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Transkripsi (di Mac)</legend>
+    <div class="field">
+      <label for="wm">Model Whisper</label>
+      <select id="wm" name="WHISPER_MODEL">
+        {% for v, l in [
+          ('mlx-community/whisper-large-v3-turbo', 'large-v3-turbo · akurat, disarankan untuk RAM 8 GB'),
+          ('mlx-community/whisper-medium-mlx', 'medium · lebih ringan'),
+          ('mlx-community/whisper-small-mlx', 'small · paling cepat, kurang akurat'),
+          ('mlx-community/whisper-large-v3-mlx', 'large-v3 · paling akurat, butuh RAM lebih')] %}
+        <option value="{{ v }}" {% if s.whisper_model == v %}selected{% endif %}>{{ l }}</option>
+        {% endfor %}
+        {% if s.whisper_model not in ['mlx-community/whisper-large-v3-turbo','mlx-community/whisper-medium-mlx','mlx-community/whisper-small-mlx','mlx-community/whisper-large-v3-mlx'] %}
+        <option value="{{ s.whisper_model }}" selected>{{ s.whisper_model }}</option>
+        {% endif %}
+      </select>
+      <p class="hint" style="margin-top:6px">Model diunduh otomatis saat pertama dipakai (sekitar 1,5 GB untuk turbo).</p>
+    </div>
+    <div class="grid3">
+      <div class="field"><label for="wl">Bahasa</label><input type="text" id="wl" name="WHISPER_LANGUAGE" value="{{ s.whisper_language }}"></div>
+      <div class="field"><label for="cm">Potongan audio (menit)</label><input type="number" id="cm" name="CHUNK_MINUTES" value="{{ s.chunk_minutes }}" min="5" max="60"></div>
+      <div class="field"><label for="mh">Resolusi unduhan maks</label>
+        <select id="mh" name="SOURCE_MAX_HEIGHT">
+          {% for h in [720, 1080, 1440] %}<option value="{{ h }}" {% if s.source_max_height == h %}selected{% endif %}>{{ h }}p</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>FFmpeg</legend>
+    <div class="grid2">
+      <div class="field"><label for="fb">Path ffmpeg</label><input type="text" id="fb" name="FFMPEG_BIN" value="{{ s.ffmpeg_bin }}"></div>
+      <div class="field"><label for="fp">Path ffprobe</label><input type="text" id="fp" name="FFPROBE_BIN" value="{{ s.ffprobe_bin }}"></div>
+    </div>
+  </fieldset>
+  <div class="save-bar"><button class="btn primary">Simpan pengaturan</button></div>
+</form>
+
+<aside class="aside">
+  <div class="panel">
+    <h2 style="margin-bottom:10px">Cek sistem</h2>
+    <ul class="sys-list">
+      <li><span class="dot {{ 'ok' if sys.ffmpeg else 'bad' }}"></span><span class="what">FFmpeg<br><small>{{ sys.ffmpeg or 'tidak ditemukan' }}</small></span></li>
+      <li><span class="dot {{ 'ok' if sys.has_ass else 'bad' }}"></span><span class="what">Subtitle (libass)<br><small>{{ 'tersedia' if sys.has_ass else 'pasang: brew install ffmpeg-full' }}</small></span></li>
+      <li><span class="dot {{ 'ok' if sys.has_videotoolbox else 'bad' }}"></span><span class="what">Encoder hardware Mac<br><small>{{ 'VideoToolbox aktif' if sys.has_videotoolbox else ('pakai libx264 (lebih lambat)' if sys.has_x264 else 'tidak ada encoder H.264') }}</small></span></li>
+      <li><span class="dot {{ 'ok' if sys.yt_dlp else 'bad' }}"></span><span class="what">yt-dlp<br><small>{{ sys.yt_dlp or 'belum terpasang' }}</small></span></li>
+      <li><span class="dot {{ 'ok' if sys.deno else 'bad' }}"></span><span class="what">Deno untuk YouTube<br><small>{{ 'terpasang' if sys.deno else 'pasang: brew install deno' }}</small></span></li>
+      <li><span class="dot {{ 'ok' if (sys.mlx_whisper or sys.faster_whisper) else 'bad' }}"></span><span class="what">Whisper<br><small>{{ 'mlx-whisper (GPU Apple Silicon)' if sys.mlx_whisper else ('faster-whisper' if sys.faster_whisper else 'belum terpasang') }}</small></span></li>
+      <li><span class="dot {{ 'ok' if sys.api_key else 'bad' }}"></span><span class="what">API key DeepSeek</span></li>
+    </ul>
+    <p class="hint" style="margin-top:10px">{{ sys.platform }}</p>
+  </div>
+</aside>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('test-ds').onclick = async () => {
+  const out = document.getElementById('test-ds-out');
+  out.textContent = 'Menghubungi DeepSeek…';
+  const r = await fetch('/api/settings/test-deepseek', { method: 'POST' });
+  const d = await r.json();
+  out.textContent = d.ok ? 'Terhubung. API key berfungsi.' : 'Gagal: ' + (d.error || 'tidak diketahui');
+};
+</script>
+{% endblock %}

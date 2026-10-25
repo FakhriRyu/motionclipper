@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% set active = 'new' %}
+{% block title %}Job baru · MotionClipper KL{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Job baru</h1>
+    <p class="sub">Pilih campaign, lalu beri video sumbernya. Proses berjalan di Mac ini; tab boleh ditutup.</p>
+  </div>
+</div>
+
+<form method="post" action="/jobs" enctype="multipart/form-data" class="panel" style="max-width:760px">
+  <div class="field">
+    <label for="campaign_id">Campaign</label>
+    <select name="campaign_id" id="campaign_id" required>
+      {% for c in campaigns %}
+      <option value="{{ c.id }}" {% if c.id == selected %}selected{% endif %} data-sources='{{ c.sources | tojson }}'>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <fieldset>
+    <legend>Link YouTube</legend>
+    <div class="field">
+      <label for="urls">Satu link per baris <span class="hint">· tiap link jadi satu job</span></label>
+      <textarea name="urls" id="urls" rows="4" placeholder="https://www.youtube.com/watch?v=...">{{ url }}</textarea>
+      <div class="hint" style="margin-top:6px">Link dari brief campaign:</div>
+      <div class="chips" id="source-chips"></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Atau file di Mac</legend>
+    <div class="field">
+      <label for="inbox_file">File di folder inbox <span class="hint">· paling hemat untuk file besar</span></label>
+      <select name="inbox_file" id="inbox_file">
+        <option value="">Tidak pakai</option>
+        {% for f in inbox %}<option>{{ f }}</option>{% endfor %}
+      </select>
+      <p class="hint" style="margin-top:6px">Taruh video di <code>{{ inbox_dir }}</code>, lalu muat ulang halaman ini.</p>
+    </div>
+    <div class="field">
+      <label for="upload">Unggah file video</label>
+      <input type="file" name="upload" id="upload" accept="video/*">
+    </div>
+  </fieldset>
+
+  <div class="row" style="margin-top:8px">
+    <button class="btn primary">Mulai proses</button>
+    {% if not sys.api_key %}<span class="hint">API key DeepSeek belum diisi: proses akan berhenti di tahap Pilih momen.</span>{% endif %}
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const sel = document.getElementById('campaign_id');
+  const chips = document.getElementById('source-chips');
+  const ta = document.getElementById('urls');
+  function draw() {
+    const opt = sel.options[sel.selectedIndex];
+    const list = opt ? JSON.parse(opt.dataset.sources || '[]') : [];
+    chips.innerHTML = '';
+    if (!list.length) { chips.innerHTML = '<span class="hint">Campaign ini belum punya link sumber.</span>'; return; }
+    list.forEach(u => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip'; b.textContent = u.replace(/^https?:\/\/(www\.)?/, '');
+      b.onclick = () => { if (!ta.value.includes(u)) ta.value = (ta.value.trim() ? ta.value.trim() + '\n' : '') + u; };
+      chips.appendChild(b);
+    });
+  }
+  sel.addEventListener('change', draw); draw();
+})();
+</script>
+{% endblock %}

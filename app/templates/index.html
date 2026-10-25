@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% set active = 'home' %}
+{% block content %}
+{% if not sys.api_key %}
+<div class="banner">API key DeepSeek belum diisi, jadi pemilihan momen belum bisa jalan. <a href="/settings">Isi di Pengaturan</a>.</div>
+{% endif %}
+{% if sys.ffmpeg and not sys.has_ass %}
+<div class="banner">FFmpeg terpasang tanpa libass, jadi clip dirender tanpa subtitle. Jalankan <code>brew install ffmpeg-full</code> lalu buka ulang aplikasi.</div>
+{% endif %}
+{% if not sys.ffmpeg %}
+<div class="banner bad">FFmpeg tidak ditemukan. Jalankan <code>./setup.sh</code> di folder proyek.</div>
+{% endif %}
+
+<div class="page-head">
+  <div>
+    <h1>Job clipping</h1>
+    <p class="sub">Satu job = satu video sumber. Diproses berurutan, satu per satu.</p>
+  </div>
+  <a class="btn primary" href="/jobs/new">Buat job baru</a>
+</div>
+
+<div class="list" data-poll-jobs>
+  {% for j in jobs %}
+  <a class="list-row" href="/jobs/{{ j.id }}" data-job="{{ j.id }}">
+    <div>
+      <div class="title">{{ j.title }}</div>
+      <small>{{ names.get(j.campaign_id, j.campaign_id) }} · dibuat {{ j.created.replace('T', ' ')[:16] }}</small>
+    </div>
+    <div class="status" data-status>
+      <span>{{ STATUS_TEXT.get(j.status, j.status) }}</span>
+      <div class="bar"><i style="width: {{ (j.progress or 0) * 100 }}%"></i></div>
+    </div>
+    <div><span class="pill">{{ j.clip_count }} clip</span></div>
+    <div class="muted" style="text-align:right">{{ (j.usage or {}).get('cost_usd', 0) | rupiah }}</div>
+  </a>
+  {% else %}
+  <div class="list-empty">Belum ada job. Mulai dengan menempel link YouTube dari brief campaign di <a href="/jobs/new">Job baru</a>.</div>
+  {% endfor %}
+</div>
+
+<div class="section-title">
+  <h2>Campaign</h2>
+  <form method="post" action="/campaigns" class="row">
+    <input type="text" name="name" placeholder="Nama campaign baru" required style="width:220px">
+    <button class="btn">Tambah campaign</button>
+  </form>
+</div>
+<div class="list">
+  {% for c in campaigns %}
+  {% set a = assets[c.id] %}
+  <div class="list-row camp-row">
+    <div>
+      <div class="title"><a href="/campaigns/{{ c.id }}">{{ c.name }}</a></div>
+      <small>Eligible mulai {{ c.eligible_from or '–' }} · {{ counts.get(c.id, 0) }} job · {{ c.sources | length }} link sumber</small>
+    </div>
+    <div class="row" style="font-size:13px">
+      <span title="Watermark"><span class="dot {{ 'ok' if a.watermark else 'bad' }}"></span> Watermark</span>
+      <span title="Logo"><span class="dot {{ 'ok' if a.logo else 'bad' }}"></span> Logo</span>
+      <span title="Asset video wajib"><span class="dot {{ 'ok' if a.asset else 'bad' }}"></span> Asset</span>
+    </div>
+    <div class="row">
+      <a class="btn small" href="/campaigns/{{ c.id }}">Atur</a>
+      <a class="btn small primary" href="/jobs/new?campaign={{ c.id }}">Job baru</a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
+{% block scripts %}<script>pollDashboard();</script>{% endblock %}
